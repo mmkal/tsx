@@ -1,0 +1,325 @@
+import path from 'path';
+import { fileURLToPath, pathToFileURL } from 'url';
+import { i as installSourceMapSupport, c as compareNodeVersion, r as resolveTsPath } from './source-map-9bff6e3e.mjs';
+import { t as transform, a as transformDynamicImport } from './index-915aae05.mjs';
+import { parseTsconfig, getTsconfig, createFilesMatcher, createPathsMatcher } from 'get-tsconfig';
+import fs from 'fs';
+
+const packageJsonCache = /* @__PURE__ */ new Map();
+async function readPackageJson(filePath) {
+  if (packageJsonCache.has(filePath)) {
+    return packageJsonCache.get(filePath);
+  }
+  const exists = await fs.promises.access(filePath).then(
+    () => true,
+    () => false
+  );
+  if (!exists) {
+    packageJsonCache.set(filePath, void 0);
+    return;
+  }
+  const packageJsonString = await fs.promises.readFile(filePath, "utf8");
+  try {
+    const packageJson = JSON.parse(packageJsonString);
+    packageJsonCache.set(filePath, packageJson);
+    return packageJson;
+  } catch {
+    throw new Error(`Error parsing: ${filePath}`);
+  }
+}
+async function findPackageJson(filePath) {
+  let packageJsonUrl = new URL("package.json", filePath);
+  while (true) {
+    if (packageJsonUrl.pathname.endsWith("/node_modules/package.json")) {
+      break;
+    }
+    const packageJsonPath = fileURLToPath(packageJsonUrl);
+    const packageJson = await readPackageJson(packageJsonPath);
+    if (packageJson) {
+      return packageJson;
+    }
+    const lastPackageJSONUrl = packageJsonUrl;
+    packageJsonUrl = new URL("../package.json", packageJsonUrl);
+    if (packageJsonUrl.pathname === lastPackageJSONUrl.pathname) {
+      break;
+    }
+  }
+}
+async function getPackageType(filePath) {
+  const packageJson = await findPackageJson(filePath);
+  return packageJson?.type ?? "commonjs";
+}
+
+const applySourceMap = installSourceMapSupport();
+const tsconfig = process.env.ESBK_TSCONFIG_PATH ? {
+  path: path.resolve(process.env.ESBK_TSCONFIG_PATH),
+  config: parseTsconfig(process.env.ESBK_TSCONFIG_PATH)
+} : getTsconfig();
+const fileMatcher = tsconfig && createFilesMatcher(tsconfig);
+const tsconfigPathsMatcher = tsconfig && createPathsMatcher(tsconfig);
+const fileProtocol = "file://";
+const tsExtensionsPattern = /\.([cm]?ts|[tj]sx)($|\?)/;
+const isJsonPattern = /\.json(?:$|\?)/;
+const getFormatFromExtension = (fileUrl) => {
+  const extension = path.extname(fileUrl);
+  if (extension === ".json") {
+    return "json";
+  }
+  if (extension === ".mjs" || extension === ".mts") {
+    return "module";
+  }
+  if (extension === ".cjs" || extension === ".cts") {
+    return "commonjs";
+  }
+};
+const getFormatFromFileUrl = (fileUrl) => {
+  const format = getFormatFromExtension(fileUrl);
+  if (format) {
+    return format;
+  }
+  if (tsExtensionsPattern.test(fileUrl)) {
+    return getPackageType(fileUrl);
+  }
+};
+
+const isDirectoryPattern = /\/(?:$|\?)/;
+const isolatedLoader = compareNodeVersion([20, 0, 0]) >= 0;
+let sendToParent = process.send ? process.send.bind(process) : void 0;
+let mainThreadPort;
+const _globalPreload = ({ port }) => {
+  mainThreadPort = port;
+  sendToParent = port.postMessage.bind(port);
+  return `
+	const require = getBuiltin('module').createRequire("${import.meta.url}");
+	require('update-plz').installSourceMapSupport(port);
+	if (process.send) {
+		port.addListener('message', (message) => {
+			if (message.type === 'dependency') {
+				process.send(message);
+			}
+		});
+	}
+	port.unref(); // Allows process to exit without waiting for port to close
+	`;
+};
+const globalPreload = isolatedLoader ? _globalPreload : void 0;
+const resolveExplicitPath = async (defaultResolve, specifier, context) => {
+  const resolved = await defaultResolve(specifier, context);
+  if (!resolved.format && resolved.url.startsWith(fileProtocol)) {
+    resolved.format = await getFormatFromFileUrl(resolved.url);
+  }
+  return resolved;
+};
+const extensions = [".js", ".json", ".ts", ".tsx", ".jsx"];
+async function tryExtensions(specifier, context, defaultResolve) {
+  const [specifierWithoutQuery, query] = specifier.split("?");
+  let throwError;
+  for (const extension of extensions) {
+    try {
+      return await resolveExplicitPath(
+        defaultResolve,
+        specifierWithoutQuery + extension + (query ? `?${query}` : ""),
+        context
+      );
+    } catch (_error) {
+      if (throwError === void 0 && _error instanceof Error) {
+        const { message } = _error;
+        _error.message = _error.message.replace(`${extension}'`, "'");
+        _error.stack = _error.stack.replace(message, _error.message);
+        throwError = _error;
+      }
+    }
+  }
+  throw throwError;
+}
+async function tryDirectory(specifier, context, defaultResolve) {
+  const isExplicitDirectory = isDirectoryPattern.test(specifier);
+  const appendIndex = isExplicitDirectory ? "index" : "/index";
+  const [specifierWithoutQuery, query] = specifier.split("?");
+  try {
+    return await tryExtensions(
+      specifierWithoutQuery + appendIndex + (query ? `?${query}` : ""),
+      context,
+      defaultResolve
+    );
+  } catch (_error) {
+    if (!isExplicitDirectory) {
+      try {
+        return await tryExtensions(specifier, context, defaultResolve);
+      } catch {
+      }
+    }
+    const error = _error;
+    const { message } = error;
+    error.message = error.message.replace(`${appendIndex.replace("/", path.sep)}'`, "'");
+    error.stack = error.stack.replace(message, error.message);
+    throw error;
+  }
+}
+const isRelativePathPattern = /^\.{1,2}\//;
+const supportsNodePrefix = compareNodeVersion([14, 13, 1]) >= 0 || compareNodeVersion([12, 20, 0]) >= 0;
+const resolve = async function(specifier, context, defaultResolve, recursiveCall) {
+  if (!supportsNodePrefix && specifier.startsWith("node:")) {
+    specifier = specifier.slice(5);
+  }
+  if (isDirectoryPattern.test(specifier)) {
+    return await tryDirectory(specifier, context, defaultResolve);
+  }
+  const isPath = specifier.startsWith(fileProtocol) || isRelativePathPattern.test(specifier);
+  if (tsconfigPathsMatcher && !isPath && !context.parentURL?.includes("/node_modules/")) {
+    const possiblePaths = tsconfigPathsMatcher(specifier);
+    for (const possiblePath of possiblePaths) {
+      try {
+        return await resolve(
+          pathToFileURL(possiblePath).toString(),
+          context,
+          defaultResolve
+        );
+      } catch {
+      }
+    }
+  }
+  if (
+    // !recursiveCall &&
+    tsExtensionsPattern.test(context.parentURL)
+  ) {
+    const tsPaths = resolveTsPath(specifier);
+    if (tsPaths) {
+      for (const tsPath of tsPaths) {
+        try {
+          return await resolveExplicitPath(defaultResolve, tsPath, context);
+        } catch (error) {
+          const { code } = error;
+          if (code !== "ERR_MODULE_NOT_FOUND" && code !== "ERR_PACKAGE_PATH_NOT_EXPORTED") {
+            throw error;
+          }
+        }
+      }
+    }
+  }
+  try {
+    return await resolveExplicitPath(defaultResolve, specifier, context);
+  } catch (error) {
+    if (error instanceof Error && !recursiveCall) {
+      const { code } = error;
+      if (code === "ERR_UNSUPPORTED_DIR_IMPORT") {
+        try {
+          return await tryDirectory(specifier, context, defaultResolve);
+        } catch (error_) {
+          if (error_.code !== "ERR_PACKAGE_IMPORT_NOT_DEFINED") {
+            throw error_;
+          }
+        }
+      }
+      if (code === "ERR_MODULE_NOT_FOUND") {
+        try {
+          return await tryExtensions(specifier, context, defaultResolve);
+        } catch {
+        }
+      }
+    }
+    throw error;
+  }
+};
+const load = async function(url, context, defaultLoad) {
+  if (sendToParent) {
+    sendToParent({
+      type: "dependency",
+      path: url
+    });
+  }
+  if (isJsonPattern.test(url)) {
+    if (!context.importAssertions) {
+      context.importAssertions = {};
+    }
+    context.importAssertions.type = "json";
+  }
+  const loaded = await defaultLoad(url, context);
+  if (!loaded.source) {
+    return loaded;
+  }
+  const filePath = url.startsWith("file://") ? fileURLToPath(url) : url;
+  const code = loaded.source.toString();
+  if (
+    // Support named imports in JSON modules
+    loaded.format === "json" || tsExtensionsPattern.test(url)
+  ) {
+    const transformed = await transform(
+      code,
+      filePath,
+      {
+        tsconfigRaw: fileMatcher?.(filePath)
+      }
+    );
+    return {
+      format: "module",
+      source: applySourceMap(transformed, url, mainThreadPort)
+    };
+  }
+  if (loaded.format === "module") {
+    const dynamicImportTransformed = transformDynamicImport(filePath, code);
+    if (dynamicImportTransformed) {
+      loaded.source = applySourceMap(
+        dynamicImportTransformed,
+        url,
+        mainThreadPort
+      );
+    }
+  }
+  return loaded;
+};
+
+const _getFormat = async function(url, context, defaultGetFormat) {
+  if (isJsonPattern.test(url)) {
+    return { format: "module" };
+  }
+  try {
+    return await defaultGetFormat(url, context, defaultGetFormat);
+  } catch (error) {
+    if (error.code === "ERR_UNKNOWN_FILE_EXTENSION" && url.startsWith(fileProtocol)) {
+      const format = await getFormatFromFileUrl(url);
+      if (format) {
+        return { format };
+      }
+    }
+    throw error;
+  }
+};
+const _transformSource = async function(source, context, defaultTransformSource) {
+  const { url } = context;
+  const filePath = url.startsWith("file://") ? fileURLToPath(url) : url;
+  if (process.send) {
+    process.send({
+      type: "dependency",
+      path: url
+    });
+  }
+  if (isJsonPattern.test(url) || tsExtensionsPattern.test(url)) {
+    const transformed = await transform(
+      source.toString(),
+      filePath,
+      {
+        tsconfigRaw: fileMatcher?.(filePath)
+      }
+    );
+    return {
+      source: applySourceMap(transformed, url)
+    };
+  }
+  const result = await defaultTransformSource(source, context, defaultTransformSource);
+  if (context.format === "module") {
+    const dynamicImportTransformed = transformDynamicImport(filePath, result.source.toString());
+    if (dynamicImportTransformed) {
+      result.source = applySourceMap(
+        dynamicImportTransformed,
+        url
+      );
+    }
+  }
+  return result;
+};
+const nodeSupportsDeprecatedLoaders = compareNodeVersion([16, 12, 0]) < 0;
+const getFormat = nodeSupportsDeprecatedLoaders ? _getFormat : void 0;
+const transformSource = nodeSupportsDeprecatedLoaders ? _transformSource : void 0;
+
+export { getFormat as a, globalPreload as g, load as l, resolve as r, transformSource as t };
