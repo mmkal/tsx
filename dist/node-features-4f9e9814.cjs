@@ -1,0 +1,1 @@
+"use strict";const o=process.versions.node.split(".").map(Number),t=e=>o[0]-e[0]||o[1]-e[1]||o[2]-e[2],s=t([20,0,0])>=0,r=t([20,6,0])>=0,d=t([21,0,0])>=0,c=t([21,1,0])>=0;exports.detectModule=c,exports.importAttributes=d,exports.isolatedLoader=s,exports.supportsModuleRegister=r;
