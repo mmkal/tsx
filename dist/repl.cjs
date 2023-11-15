@@ -1,3 +1,3 @@
-"use strict";var c=require("repl"),n=require("@esbuild-kit/core-utils"),i=require("./package-eab616d0.cjs");function u(e){return e&&typeof e=="object"&&"default"in e?e:{default:e}}var p=u(c);console.log(`Welcome to tsx v${i.version} (Node.js ${process.version}).
-Type ".help" for more information.`);const t=p.default.start(),{eval:d}=t,f=async function(e,o,r,a){const s=await n.transform(e,r,{loader:"ts",tsconfigRaw:{compilerOptions:{preserveValueImports:!0}}}).catch(l=>(console.log(l.message),{code:`
-`}));return d.call(this,s.code,o,r,a)};t.eval=f;
+"use strict";var s=require("repl"),l=require("./package-eab616d0.cjs"),u=require("./index-6a8696ce.cjs");require("url"),require("esbuild"),require("crypto"),require("fs"),require("path"),require("os");function c(e){return e&&typeof e=="object"&&"default"in e?e:{default:e}}var f=c(s);console.log(`Welcome to tsx v${l.version} (Node.js ${process.version}).
+Type ".help" for more information.`);const o=f.default.start(),{eval:p}=o,d=async function(e,t,r,a){const n=await u.transform(e,r,{loader:"ts",tsconfigRaw:{compilerOptions:{preserveValueImports:!0}},define:{require:"global.require"}}).catch(i=>(console.log(i.message),{code:`
+`}));return p.call(this,n.code,t,r,a)};o.eval=d;

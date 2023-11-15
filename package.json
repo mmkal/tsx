@@ -12,7 +12,7 @@
     "typescript"
   ],
   "license": "MIT",
-  "repository": "esbuild-kit/tsx",
+  "repository": "privatenumber/tsx",
   "author": {
     "name": "Hiroki Osame",
     "email": "hiroki.osame@gmail.com"
@@ -22,50 +22,26 @@
     "dist"
   ],
   "exports": {
-    ".": "./dist/loader.js",
-    "./cli": "./dist/cli.js",
+    "./package.json": "./package.json",
+    ".": "./dist/loader.mjs",
+    "./cjs": "./dist/cjs/index.cjs",
+    "./esm": "./dist/esm/index.mjs",
+    "./cli": "./dist/cli.mjs",
+    "./source-map": "./dist/source-map.cjs",
     "./suppress-warnings": "./dist/suppress-warnings.cjs",
-    "./repl": "./dist/repl.js"
+    "./preflight": "./dist/preflight.cjs",
+    "./repl": "./dist/repl.mjs"
   },
-  "bin": "./dist/cli.js",
-  "scripts": {
-    "build": "pkgroll --target=node12.19 --minify",
-    "lint": "eslint --cache .",
-    "pretest": "npm run build",
-    "test": "node ./dist/cli.js tests/index.ts",
-    "prepublishOnly": "npm test"
+  "bin": "./dist/cli.mjs",
+  "engines": {
+    "node": ">=18.0.0"
   },
   "dependencies": {
-    "@esbuild-kit/cjs-loader": "^2.3.3",
-    "@esbuild-kit/core-utils": "^2.1.0",
-    "@esbuild-kit/esm-loader": "^2.4.2"
+    "esbuild": "~0.18.20",
+    "get-tsconfig": "^4.7.2",
+    "source-map-support": "^0.5.21"
   },
   "optionalDependencies": {
-    "fsevents": "~2.3.2"
-  },
-  "devDependencies": {
-    "@pvtnbr/eslint-config": "^0.27.0",
-    "@types/cross-spawn": "^6.0.2",
-    "@types/node": "^18.6.4",
-    "@types/semver": "^7.3.10",
-    "chokidar": "^3.5.3",
-    "cleye": "^1.2.1",
-    "cross-spawn": "^7.0.3",
-    "eslint": "^8.21.0",
-    "execa": "^6.1.0",
-    "fs-fixture": "^1.1.0",
-    "get-node": "^13.1.0",
-    "kolorist": "^1.5.1",
-    "manten": "^0.2.1",
-    "pkgroll": "^1.4.0",
-    "semver": "^7.3.7",
-    "type-flag": "^2.2.0",
-    "typescript": "^4.7.4"
-  },
-  "eslintConfig": {
-    "extends": "@pvtnbr",
-    "ignorePatterns": [
-      "tests/fixtures"
-    ]
+    "fsevents": "~2.3.3"
   }
 }

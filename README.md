@@ -1,18 +1,30 @@
 # tsx <a href="https://npm.im/tsx"><img src="https://badgen.net/npm/v/tsx"></a> <a href="https://npm.im/tsx"><img src="https://badgen.net/npm/dm/tsx"></a> <a href="https://packagephobia.now.sh/result?p=tsx"><img src="https://packagephobia.now.sh/badge?p=tsx"></a>
 
-> _TypeScript Execute (`tsx`)_: Node.js enhanced with [esbuild](https://esbuild.github.io/) to run TypeScript & ESM files
+> _TypeScript Execute (`tsx`)_: Node.js enhanced to run TypeScript & ESM files
 
 ### Features
 - Blazing fast on-demand TypeScript & ESM compilation
 - Works in both [CommonJS and ESM packages](https://nodejs.org/api/packages.html#type)
 - Supports next-gen TypeScript extensions (`.cts` & `.mts`)
-- Supports `node:` import prefixes
 - Hides experimental feature warnings
 - TypeScript REPL
 - Resolves `tsconfig.json` [`paths`](https://www.typescriptlang.org/tsconfig#paths)
-- Tested on Linux & Windows with Node.js v12~18
 
-<sub>Support this project by ⭐️ starring and sharing it. [Follow me](https://github.com/privatenumber) to see what other cool projects I'm working on! ❤️</sub>
+> **💡 Protip: Looking to bundle your TypeScript project?**
+>
+> If you're looking for a dead simple way to bundle your TypeScript projects, take a look at [`pkgroll`](https://github.com/privatenumber/pkgroll). It's an esbuild-enhanced Rollup that's auto configured based on your `package.json`!
+
+<br>
+
+<p align="center">
+	<a href="https://privatenumber-sponsors.vercel.app/api/sponsor?tier=platinum">
+		<picture>
+			<source width="830" media="(prefers-color-scheme: dark)" srcset="https://privatenumber-sponsors.vercel.app/api/sponsor?tier=platinum&image=dark">
+			<source width="830" media="(prefers-color-scheme: light)" srcset="https://privatenumber-sponsors.vercel.app/api/sponsor?tier=platinum&image">
+			<img width="830" src="https://privatenumber-sponsors.vercel.app/api/sponsor?tier=platinum&image" alt="Premium sponsor banner">
+		</picture>
+	</a>
+</p>
 
 ## About
 `tsx` is a CLI command (alternative to `node`) for seamlessly running TypeScript & ESM, in both `commonjs` & `module` package types.
@@ -27,6 +39,11 @@ npx tsx ./script.ts
 
 How does it compare to [ts-node](https://github.com/TypeStrong/ts-node)? Checkout the [comparison](https://github.com/privatenumber/ts-runtime-comparison).
 
+### Mission
+tsx strives to:
+1. Enhance Node.js with TypeScript compatibility
+2. Improve ESM <-> CJS interoperability
+3. Support the [LTS versions of Node.js](https://endoflife.date/nodejs)
 
 ## Install
 
@@ -87,6 +104,12 @@ To set a custom path, use the `--tsconfig` flag:
 tsx --tsconfig ./path/to/tsconfig.custom.json ./file.ts
 ```
 
+Alternatively, use the `TSX_TSCONFIG_PATH` environment variable:
+
+```sh
+TSX_TSCONFIG_PATH=./path/to/tsconfig.custom.json tsx ./file.ts
+```
+
 ### Watch mode
 Run file and automatically rerun on changes:
 
@@ -96,6 +119,13 @@ tsx watch ./file.ts
 
 All imported files are watched except from the following directories:
 `node_modules`, `bower_components`, `vendor`, `dist`, and `.*` (hidden directories).
+
+#### Ignore files from watch
+
+To exclude files from being watched, pass in a path or glob to the `--ignore` flag:
+```sh
+tsx watch --ignore ./ignore-me.js --ignore ./ignore-me-too.js ./file.ts
+```
 
 #### Tips
 - Press <kbd>Return</kbd> to manually rerun
@@ -117,40 +147,100 @@ Set the `--no-cache` flag to disable the cache:
 tsx --no-cache ./file.ts
 ```
 
+Alternatively, use the `TSX_DISABLE_CACHE` environment variable:
+
+```sh
+TSX_DISABLE_CACHE=1 tsx ./file.ts
+```
+
 ### Node.js Loader
 
 `tsx` is a standalone binary designed to be used in place of `node`, but sometimes you'll want to use `node` directly. For example, when adding TypeScript & ESM support to npm-installed binaries.
 
-To use `tsx` with Node.js, pass it to the [`--loader`](https://nodejs.org/api/esm.html#loaders) flag.
-
-> Note: Node.js's experimental feature warnings will not be suppressed when used as a loader.
+To use `tsx` as a  Node.js loader, pass it in to the [`--import`](https://nodejs.org/api/module.html#enabling) flag. This will add TypeScript & ESM support for both Module and CommonJS contexts.
 
 ```sh
-# As a CLI flag
-node --loader tsx ./file.ts
-
-# As an environment variable
-NODE_OPTIONS='--loader tsx' node ./file.ts
+node --import tsx ./file.ts
 ```
 
-> Tip: In rare circumstances, you might be limited to using the [`-r, --require`](https://nodejs.org/api/cli.html#-r---require-module) flag.
->
-> You can use [`@esbuild-kit/cjs-loader`](https://github.com/esbuild-kit/cjs-loader), but transformations will only be applied to `require()`.
+Or as an environment variable:
+```sh
+NODE_OPTIONS='--import tsx' node ./file.ts
+```
 
-## Dependencies
+> **Note:** The loader is limited to adding support for loading TypeScript/ESM files. CLI features such as _watch mode_ or suppressing "experimental feature" warnings will not be available.
 
-- [@esbuild-kit/esm-loader](https://github.com/esbuild-kit/esm-loader) - Node.js Loader to transform TypeScript to ESM.
+#### ESM only loader
 
-- [@esbuild-kit/cjs-loader](https://github.com/esbuild-kit/cjs-loader) - Node.js `require()` hook to transform TypeScript & ESM to CommonJS.
+If you only need to add TypeScript support in a Module context, you can use the ESM loader:
 
+##### Node.js v20.6.0 and above
+```sh
+node --import tsx/esm ./file.ts
+```
+
+##### Node.js v20.5.1 and below
+
+```sh
+node --loader tsx/esm ./file.ts
+```
+
+#### CommonJS only loader
+If you only need to add TypeScript & ESM support in a CommonJS context, you can use the CJS loader:
+
+```sh
+node --require tsx/cjs ./file.ts
+```
+
+### Hashbang
+
+If you prefer to write scripts that doesn't need to be passed into tsx, you can declare it in the [hashbang](https://bash.cyberciti.biz/guide/Shebang).
+
+Simply add `#!/usr/bin/env tsx` at the top of your file:
+
+_file.ts_
+```ts
+#!/usr/bin/env tsx
+
+console.log('argv:', process.argv.slice(2))
+```
+
+And make the file executable:
+```sh
+chmod +x ./file.ts
+```
+
+Now, you can run the file without passing it into tsx:
+```sh
+$ ./file.ts hello
+argv: [ 'hello' ]
+```
+
+<br>
+
+<p align="center">
+	<a href="https://privatenumber-sponsors.vercel.app/api/sponsor?tier=gold">
+		<picture>
+			<source width="830" media="(prefers-color-scheme: dark)" srcset="https://privatenumber-sponsors.vercel.app/api/sponsor?tier=gold&image=dark">
+			<source width="830" media="(prefers-color-scheme: light)" srcset="https://privatenumber-sponsors.vercel.app/api/sponsor?tier=gold&image">
+			<img width="830" src="https://privatenumber-sponsors.vercel.app/api/sponsor?tier=gold&image" alt="Premium sponsor banner">
+		</picture>
+	</a>
+</p>
+
+## Support
+
+If there's a problem you're encountering or something you need help with, don't hesitate to take advantage of my [_Priority Support_ service](https://github.com/sponsors/privatenumber) where you can ask me questions in an exclusive forum. I'm well equppied to assist you with this project and would be happy to help you out! 🙂
 
 ## FAQ
 
 ### Why is it named `tsx`?
 
-`tsx` stands for "TypeScript execute", similar to [`npx`](https://docs.npmjs.com/cli/v8/commands/npx) ("Node.js package execute").
+`tsx` stands for "TypeScript execute". Mirroring [`npx`](https://docs.npmjs.com/cli/v8/commands/npx), which stands for "Node.js package execute".
 
-It has an unfortunate overlap with React's [TSX/JSX](https://www.typescriptlang.org/docs/handbook/jsx.html), which stands for "JavaScript XML". However, we believe the naming is appropriate for what it does.
+The 3-character package name offers an elegant developer experience, allowing usage like: `npx tsx ...`.
+
+Unfortunately, it overlaps with React's [TSX/JSX](https://www.typescriptlang.org/docs/handbook/jsx.html), which stands for "TypeScript XML".
 
 ### Does it do type-checking?
 
@@ -161,16 +251,27 @@ It's recommended to run TypeScript separately as a command (`tsc --noEmit`) or v
 
 ### How is `tsx` different from [`ts-node`](https://github.com/TypeStrong/ts-node)?
 
-They are both tools to run TypeScript files.
+They're both tools to run TypeScript files. But tsx does a lot more to improve the experience of using Node.js.
 
-The main difference is that `tsx` is powered by [esbuild](https://esbuild.github.io/) for blazing fast TypeScript compilation, whereas `ts-node` uses the TypeScript compiler, [which is not as fast](https://esbuild.github.io/faq/#:~:text=typescript%20benchmark).
+tsx _just works_. It's zero-config and doesn't require `tsconfig.json` to get started, making it easy for users that just want to run TypeScript code and not get caught up in the configuration.
 
-Because esbuild doesn't do type checking, `tsx` is more equivalent to `ts-node --esm --transpileOnly`.
+It's a single binary with no peer-dependencies (e.g. TypeScript or esbuild), so there is no setup necessary, enabling usage that is elegant and frictionless for first-time users:
 
-[Here's an exhaustive comparison](https://github.com/privatenumber/ts-runtime-comparison) between `tsx` vs `ts-node` (and other runtimes).
+```
+npx tsx ./script.ts
+```
 
-If you migrated from `ts-node`, please share your performance gains [here](https://github.com/esbuild-kit/tsx/discussions/10)!
+tsx is zero-config because it has smart detections built in. As a runtime, it detects what's imported to make many options in `tsconfig.json` redundant—which was designed for compiling matching files regardless of whether they're imported.
 
+It seamlessly adapts between CommonJS and ESM package types by detecting how modules are loaded (`require()` or `import`) to determine how to compile them. It even adds support for `require()`ing ESM modules from CommonJS so you don't have to worry about your dependencies as the ecosystem migrates to ESM.
+
+[Newer and unsupported syntax](https://esbuild.github.io/content-types/) & features like [importing `node:` prefixes](https://2ality.com/2021/12/node-protocol-imports.html) are downgraded by detecting the Node.js version. For large TypeScript codebases, it has [`tsconfig.json paths`](https://www.typescriptlang.org/tsconfig#paths) aliasing support out of the box.
+
+At the core, tsx is powered by esbuild for [blazing fast TypeScript compilation](https://esbuild.github.io/faq/#:~:text=typescript%20benchmark), whereas `ts-node` (by default) uses the TypeScript compiler. Because esbuild doesn't type check, `tsx` is similar to `ts-node --esm --swc` (which uses the [SWC compiler](https://github.com/TypeStrong/ts-node#swc-1)).
+
+As a bonus, tsx also comes with a watcher to speed up your development.
+
+[Here's an exhaustive technical comparison](https://github.com/privatenumber/ts-runtime-comparison) between `tsx`, `ts-node`, and other runtimes.
 
 ### Can it use esbuild plugins?
 
@@ -179,3 +280,49 @@ No. tsx uses esbuild's [Transform API](https://esbuild.github.io/api/#transform-
 ### Does it have a configuration file?
 
 No. tsx's integration with Node.js is designed to be seamless so there is no configuration.
+
+### Does it have any limitations?
+
+Transformations are handled by esbuild, so it shares the same limitations such as:
+
+- Compatibility with code executed via `eval()` is not preserved
+- Only [certain `tsconfig.json` properties](https://esbuild.github.io/content-types/#tsconfig-json) are supported
+- [`emitDecoratorMetadata`](https://www.typescriptlang.org/tsconfig#emitDecoratorMetadata) is not supported 
+
+For details, refer to esbuild's [JavaScript caveats](https://esbuild.github.io/content-types/#javascript-caveats) and [TypeScript caveats](https://esbuild.github.io/content-types/#typescript-caveats) documentation.
+
+### Does Yarn PnP work?
+
+In CommonJS mode, yes. But in Module/ESM mode, [Node.js version v19.6.0 and up](https://github.com/nodejs/node/blob/v19.6.0/doc/changelogs/CHANGELOG_V19.md#esm-leverage-loaders-when-resolving-subsequent-loaders) is required.
+
+### There's an outdated dependency in tsx—can you update?
+
+Dependencies are typically declared with SemVer ranges to allow updates. You can use the [`npm update <package name>`](https://docs.npmjs.com/cli/v8/commands/npm-update) command to automatically update them to the latest version within the defined range.
+
+If the dependencies are out of the specified range, it indicates a potential breaking change that requires manual review. You're welcome to submit a pull request to initiate the upgrade.
+
+## Sponsors
+
+<p align="center">
+	<a href="https://privatenumber-sponsors.vercel.app/api/sponsor?tier=silver1">
+		<picture>
+			<source width="410" media="(prefers-color-scheme: dark)" srcset="https://privatenumber-sponsors.vercel.app/api/sponsor?tier=silver1&image=dark">
+			<source width="410" media="(prefers-color-scheme: light)" srcset="https://privatenumber-sponsors.vercel.app/api/sponsor?tier=silver1&image">
+			<img width="410" src="https://privatenumber-sponsors.vercel.app/api/sponsor?tier=silver1&image" alt="Premium sponsor banner">
+		</picture>
+	</a>
+	<a href="https://privatenumber-sponsors.vercel.app/api/sponsor?tier=silver2">
+		<picture>
+			<source width="410" media="(prefers-color-scheme: dark)" srcset="https://privatenumber-sponsors.vercel.app/api/sponsor?tier=silver2&image=dark">
+			<source width="410" media="(prefers-color-scheme: light)" srcset="https://privatenumber-sponsors.vercel.app/api/sponsor?tier=silver2&image">
+			<img width="410" src="https://privatenumber-sponsors.vercel.app/api/sponsor?tier=silver2&image" alt="Premium sponsor banner">
+		</picture>
+	</a>
+</p>
+
+<p align="center">
+	<a href="https://github.com/sponsors/privatenumber">
+		<img src="https://cdn.jsdelivr.net/gh/privatenumber/sponsors/sponsorkit/sponsors.svg">
+	</a>
+</p>
+
