@@ -2,17 +2,15 @@
 
 Object.defineProperty(exports, '__esModule', { value: true });
 
-var pkgroll_createRequire = require('./pkgroll_create-require-764e202c.cjs');
+var pkgroll_createRequire = require('./pkgroll_create-require-bf0ed779.cjs');
 var repl = require('repl');
-var index$1 = require('./index-b89ce76d.cjs');
+var index$1 = require('./index-9348ee36.cjs');
 var index = require('./esm/index.cjs');
 require('module');
 require('url');
 require('esbuild');
 require('crypto');
 require('magic-string');
-require('es-module-lexer');
-require('es-module-lexer/js');
 require('fs');
 require('path');
 require('os');

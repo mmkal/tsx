@@ -2,7 +2,7 @@
 
 var cleye = require('cleye');
 var _package = require('./package-eab616d0.cjs');
-var pkgroll_createRequire = require('./pkgroll_create-require-764e202c.cjs');
+var pkgroll_createRequire = require('./pkgroll_create-require-bf0ed779.cjs');
 var url = require('url');
 var spawn = require('cross-spawn');
 var nodeFeatures = require('./node-features-84a305a1.cjs');

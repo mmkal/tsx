@@ -1,6 +1,6 @@
 'use strict';
 
-var pkgroll_createRequire = require('./pkgroll_create-require-764e202c.cjs');
+var pkgroll_createRequire = require('./pkgroll_create-require-bf0ed779.cjs');
 var os = require('os');
 require('./suppress-warnings.cjs');
 require('module');

@@ -1,14 +1,12 @@
-import { r as require } from './pkgroll_create-require-862fe310.mjs';
+import { r as require } from './pkgroll_create-require-b579c0bc.mjs';
 import repl from 'repl';
-import { t as transform } from './index-fdd79e29.mjs';
+import { t as transform } from './index-626e2e8e.mjs';
 export { globalPreload, initialize, load, resolve } from './esm/index.mjs';
 import 'module';
 import 'url';
 import 'esbuild';
 import 'crypto';
 import 'magic-string';
-import 'es-module-lexer';
-import 'es-module-lexer/js';
 import 'fs';
 import 'path';
 import 'os';

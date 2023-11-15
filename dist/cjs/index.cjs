@@ -5,7 +5,7 @@ var fs = require('fs');
 var Module = require('module');
 var getTsconfig = require('get-tsconfig');
 var sourceMap = require('../source-map.cjs');
-var index = require('../index-b89ce76d.cjs');
+var index = require('../index-9348ee36.cjs');
 var resolveTsPath = require('../resolve-ts-path-43f50656.cjs');
 require('source-map-support');
 require('../node-features-84a305a1.cjs');
@@ -13,8 +13,6 @@ require('url');
 require('esbuild');
 require('crypto');
 require('magic-string');
-require('es-module-lexer');
-require('es-module-lexer/js');
 require('os');
 
 function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e : { 'default': e }; }

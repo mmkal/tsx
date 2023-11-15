@@ -8,7 +8,7 @@ var Module = require('module');
 var sourceMap = require('../source-map.cjs');
 var path = require('path');
 var url = require('url');
-var index = require('../index-b89ce76d.cjs');
+var index = require('../index-9348ee36.cjs');
 var resolveTsPath = require('../resolve-ts-path-43f50656.cjs');
 var getTsconfig = require('get-tsconfig');
 var fs = require('fs');
@@ -16,8 +16,6 @@ require('source-map-support');
 require('esbuild');
 require('crypto');
 require('magic-string');
-require('es-module-lexer');
-require('es-module-lexer/js');
 require('os');
 
 function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e : { 'default': e }; }

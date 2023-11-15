@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { command, cli } from 'cleye';
 import { v as version } from './package-d4734a72.mjs';
-import { r as require } from './pkgroll_create-require-862fe310.mjs';
+import { r as require } from './pkgroll_create-require-b579c0bc.mjs';
 import { pathToFileURL, fileURLToPath } from 'url';
 import spawn from 'cross-spawn';
 import { s as supportsModuleRegister } from './node-features-a792cc3d.mjs';

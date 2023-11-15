@@ -4,7 +4,7 @@ import Module from 'module';
 import { installSourceMapSupport, shouldStripSourceMap, stripSourceMap } from '../source-map.mjs';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
-import { t as transform, a as transformDynamicImport } from '../index-fdd79e29.mjs';
+import { t as transform, a as transformDynamicImport } from '../index-626e2e8e.mjs';
 import { r as resolveTsPath } from '../resolve-ts-path-a8cb04a4.mjs';
 import { parseTsconfig, getTsconfig, createFilesMatcher, createPathsMatcher } from 'get-tsconfig';
 import fs from 'fs';
@@ -12,8 +12,6 @@ import 'source-map-support';
 import 'esbuild';
 import 'crypto';
 import 'magic-string';
-import 'es-module-lexer';
-import 'es-module-lexer/js';
 import 'os';
 
 const registerLoader = () => {

@@ -3,7 +3,7 @@ import fs from 'fs';
 import Module from 'module';
 import { parseTsconfig, getTsconfig, createFilesMatcher, createPathsMatcher } from 'get-tsconfig';
 import { installSourceMapSupport, shouldStripSourceMap, stripSourceMap } from '../source-map.mjs';
-import { p as parseEsm, a as transformDynamicImport, b as transformSync } from '../index-fdd79e29.mjs';
+import { p as parseEsm, a as transformDynamicImport, b as transformSync } from '../index-626e2e8e.mjs';
 import { r as resolveTsPath } from '../resolve-ts-path-a8cb04a4.mjs';
 import 'source-map-support';
 import '../node-features-a792cc3d.mjs';
@@ -11,8 +11,6 @@ import 'url';
 import 'esbuild';
 import 'crypto';
 import 'magic-string';
-import 'es-module-lexer';
-import 'es-module-lexer/js';
 import 'os';
 
 const isESM = (code) => {

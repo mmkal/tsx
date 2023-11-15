@@ -1,12 +1,10 @@
 import repl from 'repl';
 import { v as version } from './package-d4734a72.mjs';
-import { t as transform } from './index-fdd79e29.mjs';
+import { t as transform } from './index-626e2e8e.mjs';
 import 'url';
 import 'esbuild';
 import 'crypto';
 import 'magic-string';
-import 'es-module-lexer';
-import 'es-module-lexer/js';
 import 'fs';
 import 'path';
 import 'os';
