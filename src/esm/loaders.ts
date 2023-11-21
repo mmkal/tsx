@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import type { MessagePort } from 'node:worker_threads';
 import path from 'path';
 import { pathToFileURL, fileURLToPath } from 'url';
@@ -5,7 +6,7 @@ import type {
 	ResolveFnOutput, ResolveHookContext, LoadHook, GlobalPreloadHook, InitializeHook,
 } from 'module';
 import type { TransformOptions } from 'esbuild';
-import { transform } from '../utils/transform/index.js';
+import { transform, transformSync } from '../utils/transform/index.js';
 import { transformDynamicImport } from '../utils/transform/transform-dynamic-import.js';
 import { resolveTsPath } from '../utils/resolve-ts-path.js';
 import { installSourceMapSupport } from '../source-map.js';
@@ -20,6 +21,8 @@ import {
 	type MaybePromise,
 	type NodeError,
 } from './utils.js';
+import { isESM } from '../utils/esm-pattern.js';
+
 
 const applySourceMap = installSourceMapSupport();
 
@@ -162,12 +165,17 @@ const isRelativePathPattern = /^\.{1,2}\//;
 export const resolve: resolve = async function (
 	specifier,
 	context,
-	defaultResolve,
+	nextResolve,
 	recursiveCall,
 ) {
+	// console.log('resolve', {
+	// 	specifier,
+	// 	context,
+	// 	recursiveCall,
+	// });
 	// If directory, can be index.js, index.ts, etc.
 	if (isDirectoryPattern.test(specifier)) {
-		return await tryDirectory(specifier, context, defaultResolve);
+		return await tryDirectory(specifier, context, nextResolve);
 	}
 
 	const isPath = (
@@ -186,7 +194,7 @@ export const resolve: resolve = async function (
 				return await resolve(
 					pathToFileURL(possiblePath).toString(),
 					context,
-					defaultResolve,
+					nextResolve,
 				);
 			} catch {}
 		}
@@ -203,7 +211,7 @@ export const resolve: resolve = async function (
 		if (tsPaths) {
 			for (const tsPath of tsPaths) {
 				try {
-					return await resolveExplicitPath(defaultResolve, tsPath, context);
+					return await resolveExplicitPath(nextResolve, tsPath, context);
 					// return await resolve(tsPath, context, defaultResolve, true);
 				} catch (error) {
 					const { code } = error as NodeError;
@@ -219,7 +227,7 @@ export const resolve: resolve = async function (
 	}
 
 	try {
-		return await resolveExplicitPath(defaultResolve, specifier, context);
+		return await resolveExplicitPath(nextResolve, specifier, context);
 	} catch (error) {
 		if (
 			error instanceof Error
@@ -228,7 +236,7 @@ export const resolve: resolve = async function (
 			const { code } = error as NodeError;
 			if (code === 'ERR_UNSUPPORTED_DIR_IMPORT') {
 				try {
-					return await tryDirectory(specifier, context, defaultResolve);
+					return await tryDirectory(specifier, context, nextResolve);
 				} catch (error_) {
 					if ((error_ as NodeError).code !== 'ERR_PACKAGE_IMPORT_NOT_DEFINED') {
 						throw error_;
@@ -238,7 +246,7 @@ export const resolve: resolve = async function (
 
 			if (code === 'ERR_MODULE_NOT_FOUND') {
 				try {
-					return await tryExtensions(specifier, context, defaultResolve);
+					return await tryExtensions(specifier, context, nextResolve);
 				} catch {}
 			}
 		}
@@ -252,8 +260,11 @@ const contextAttributesProperty = importAttributes ? 'importAttributes' : 'impor
 export const load: LoadHook = async function (
 	url,
 	context,
-	defaultLoad,
+	nextLoad,
 ) {
+	// console.log({
+	// 	url,
+	// });
 	/*
 	Filter out node:*
 	Maybe only handle files that start with file://
@@ -273,21 +284,87 @@ export const load: LoadHook = async function (
 		context[contextAttributesProperty]!.type = 'json';
 	}
 
-	const loaded = await defaultLoad(url, context);
+	const loaded = await nextLoad(url, context);
+
+	// TODO: Does it ever not start with `file://`?
+	const filePath = url.startsWith('file://') ? fileURLToPath(url) : url;
+
+
+	const typescriptExtensions = [
+		'.cts',
+		'.mts',
+		'.ts',
+		'.tsx',
+		'.jsx',
+	];
+	
+	const transformExtensions = [
+		'.js',
+		'.cjs',
+		'.mjs',
+	];
+	
+
+	if (loaded.format === 'commonjs') {
+		const fileUrl = (loaded.responseURL as string) ?? url;
+		let code = loaded.source
+			? loaded.source.toString()
+			: await readFile(new URL(fileUrl), 'utf8');
+
+		const transformTs = typescriptExtensions.some(extension => filePath.endsWith(extension));
+		const transformJs = transformExtensions.some(extension => filePath.endsWith(extension));		
+
+		if (transformTs || transformJs) {
+
+			if (fileUrl.endsWith('.cjs')) {
+				// Contains native ESM check
+				const transformed = transformDynamicImport(filePath, code);
+				if (transformed) {
+					code = applySourceMap(transformed, filePath, mainThreadPort);
+				}
+			} else if (
+				transformTs
+	
+				// CommonJS file but uses ESM import/export
+				|| isESM(code)	
+			) {
+				const transformed = transformSync(
+					code,
+					filePath,
+					{
+						tsconfigRaw: fileMatcher?.(filePath) as TransformOptions['tsconfigRaw'],
+					},
+				);
+		
+				code = applySourceMap(transformed, filePath, mainThreadPort);
+		
+	
+				console.log({
+					filePath,
+					code,
+				});
+			}
+		}
+
+		loaded.source = code;
+		return loaded;
+	};
+	// console.log(loaded);
 
 	// CommonJS and Internal modules (e.g. node:*)
 	if (!loaded.source) {
 		return loaded;
 	}
 
-	const filePath = url.startsWith('file://') ? fileURLToPath(url) : url;
 	const code = loaded.source.toString();
 
 	if (
 		// Support named imports in JSON modules
-		loaded.format === 'json'
-		|| tsExtensionsPattern.test(url)
+		// loaded.format === 'json'
+		// || 
+		tsExtensionsPattern.test(url)
 	) {
+		// console.log(context);
 		const transformed = await transform(
 			code,
 			filePath,

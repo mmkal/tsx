@@ -32,8 +32,8 @@ export const run = (
 	return spawn(
 		process.execPath,
 		[
-			'--require',
-			require.resolve('./preflight.cjs'),
+			// '--require',
+			// require.resolve('./preflight.cjs'),
 
 			supportsModuleRegister ? '--import' : '--loader',
 			pathToFileURL(require.resolve('./loader.mjs')).toString(),

@@ -436,6 +436,7 @@ export default testSuite(async ({ describe }, { tsx }: NodeApis) => {
 
 					const p = await tsx(['import-from-js.js'], fixture.path);
 					onTestFail((error) => {
+						console.log(fixture);
 						console.error(error);
 						console.log(p);
 					});
