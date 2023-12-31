@@ -306,7 +306,7 @@ export const load: LoadHook = async function (
 				// Contains native ESM check
 				const transformed = transformDynamicImport(filePath, code);
 				if (transformed) {
-					code = applySourceMap(transformed, filePath, mainThreadPort);
+					code = applySourceMap(transformed);
 				}
 			} else if (
 				transformTs
@@ -322,7 +322,7 @@ export const load: LoadHook = async function (
 					},
 				);
 		
-				code = applySourceMap(transformed, filePath, mainThreadPort);
+				code = applySourceMap(transformed);
 		
 	
 				console.log({
