@@ -1,5 +1,6 @@
 import path from 'path';
 import type { TransformOptions, TransformResult } from 'esbuild';
+import type { SourceMap } from './apply-transformers.js';
 
 export const baseConfig = Object.freeze({
 	target: `node${process.versions.node}`,
@@ -13,6 +14,14 @@ export const cacheConfig = {
 	...baseConfig,
 
 	sourcemap: true,
+
+	/**
+	 * Improve performance by generating smaller source maps
+	 * that doesn't include the original source code
+	 *
+	 * https://esbuild.github.io/api/#sources-content
+	 */
+	sourcesContent: false,
 
 	/**
 	 * Smaller output for cache and marginal performance improvement:
@@ -55,12 +64,17 @@ export const patchOptions = (
 	return (
 		result: TransformResult,
 	) => {
-		if (options.sourcefile !== originalSourcefile) {
-			result.map = result.map.replace(
-				JSON.stringify(options.sourcefile),
-				JSON.stringify(originalSourcefile),
-			);
+		if (result.map) {
+			if (options.sourcefile !== originalSourcefile) {
+				result.map = result.map.replace(
+					JSON.stringify(options.sourcefile),
+					JSON.stringify(originalSourcefile),
+				);
+			}
+
+			result.map = JSON.parse(result.map);
 		}
-		return result;
+
+		return result as TransformResult & { map: SourceMap };
 	};
 };

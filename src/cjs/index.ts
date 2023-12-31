@@ -13,6 +13,7 @@ import { transformSync } from '../utils/transform/index.js';
 import { transformDynamicImport } from '../utils/transform/transform-dynamic-import.js';
 import { resolveTsPath } from '../utils/resolve-ts-path.js';
 import { isESM } from '../utils/esm-pattern.js';
+import { connectingToServer, type SendToParent } from '../utils/ipc/client.js';
 
 const isRelativePathPattern = /^\.{1,2}\//;
 const isTsFilePatten = /\.[cm]?tsx?$/;
@@ -49,13 +50,21 @@ const transformExtensions = [
 	'.mjs',
 ];
 
+let sendToParent: SendToParent | void;
+connectingToServer.then(
+	(_sendToParent) => {
+		sendToParent = _sendToParent;
+	},
+	() => {},
+);
+
 const transformer = (
 	module: Module,
 	filePath: string,
 ) => {
 	// For tracking dependencies in watch mode
-	if (process.send) {
-		process.send({
+	if (sendToParent) {
+		sendToParent({
 			type: 'dependency',
 			path: filePath,
 		});
@@ -73,7 +82,7 @@ const transformer = (
 		// Contains native ESM check
 		const transformed = transformDynamicImport(filePath, code);
 		if (transformed) {
-			code = applySourceMap(transformed, filePath);
+			code = applySourceMap(transformed);
 		}
 	} else if (
 		transformTs
@@ -89,7 +98,7 @@ const transformer = (
 			},
 		);
 
-		code = applySourceMap(transformed, filePath);
+		code = applySourceMap(transformed);
 	}
 
 	module._compile(code, filePath);

@@ -1,7 +1,7 @@
 import type { StdioOptions } from 'child_process';
 import { pathToFileURL } from 'url';
 import spawn from 'cross-spawn';
-import { supportsModuleRegister } from './utils/node-features';
+import { isFeatureSupported, moduleRegister } from './utils/node-features';
 
 export const run = (
 	argv: string[],
@@ -16,8 +16,12 @@ export const run = (
 		'inherit', // stdin
 		'inherit', // stdout
 		'inherit', // stderr
-		'ipc', // parent-child communication
 	];
+
+	// If parent process spawns tsx with ipc, spawn child with ipc
+	if (process.send) {
+		stdio.push('ipc');
+	}
 
 	if (options) {
 		if (options.noCache) {
@@ -35,7 +39,7 @@ export const run = (
 			// '--require',
 			// require.resolve('./preflight.cjs'),
 
-			supportsModuleRegister ? '--import' : '--loader',
+			isFeatureSupported(moduleRegister) ? '--import' : '--loader',
 			pathToFileURL(require.resolve('./loader.mjs')).toString(),
 
 			...argv,

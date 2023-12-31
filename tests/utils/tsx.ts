@@ -1,7 +1,12 @@
-import path from 'path';
 import { fileURLToPath } from 'url';
-import { execaNode } from 'execa';
+import { execaNode, type NodeOptions } from 'execa';
 import getNode from 'get-node';
+import {
+	isFeatureSupported,
+	moduleRegister,
+	testRunnerGlob,
+	type Version,
+} from '../../src/utils/node-features.js';
 
 type Options = {
 	args: string[];
@@ -9,8 +14,10 @@ type Options = {
 	cwd?: string;
 };
 
-const __dirname = fileURLToPath(import.meta.url);
-export const tsxPath = path.join(__dirname, '../../../dist/cli.mjs');
+export const tsxPath = fileURLToPath(new URL('../../dist/cli.mjs', import.meta.url).toString());
+
+const cjsPatchPath = fileURLToPath(new URL('../../dist/cjs/index.cjs', import.meta.url).toString());
+const hookPath = new URL('../../dist/esm/index.cjs', import.meta.url).toString();
 
 export const tsx = (
 	options: Options,
@@ -38,18 +45,33 @@ export const createNode = async (
 	const node = await getNode(nodeVersion, {
 		progress: true,
 	});
-	console.log('Got node', Date.now() - startTime, node);
+	console.log(`Got node in ${Date.now() - startTime}ms`, node);
+
+	const versionParsed = node.version.split('.').map(Number) as Version;
+	const supports = {
+		moduleRegister: isFeatureSupported(moduleRegister, versionParsed),
+
+		testRunnerGlob: isFeatureSupported(testRunnerGlob, versionParsed),
+
+		// https://nodejs.org/docs/latest-v18.x/api/cli.html#--test
+		cliTestFlag: isFeatureSupported([[18, 1, 0]], versionParsed),
+	};
+	const hookFlag = supports.moduleRegister ? '--import' : '--loader';
 
 	return {
 		version: node.version,
+
+		path: node.path,
+
+		supports,
+
 		tsx: (
 			args: string[],
-			cwd?: string,
+			cwdOrOptions?: string | NodeOptions,
 		) => execaNode(
 			tsxPath,
 			args,
 			{
-				cwd,
 				env: {
 					TSX_DISABLE_CACHE: '1',
 					DEBUG: '1',
@@ -58,8 +80,31 @@ export const createNode = async (
 				nodeOptions: [],
 				reject: false,
 				all: true,
+				...(
+					typeof cwdOrOptions === 'string'
+						? { cwd: cwdOrOptions }
+						: cwdOrOptions
+				),
 			},
 		),
+
+		cjsPatched: (
+			args: string[],
+			cwd?: string,
+		) => execaNode(args[0], args.slice(1), {
+			cwd,
+			nodePath: node.path,
+			nodeOptions: ['--require', cjsPatchPath],
+		}),
+
+		hook: (
+			args: string[],
+			cwd?: string,
+		) => execaNode(args[0], args.slice(1), {
+			cwd,
+			nodePath: node.path,
+			nodeOptions: [hookFlag, hookPath],
+		}),
 	};
 };
 

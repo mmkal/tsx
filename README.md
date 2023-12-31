@@ -10,9 +10,13 @@
 - TypeScript REPL
 - Resolves `tsconfig.json` [`paths`](https://www.typescriptlang.org/tsconfig#paths)
 
-> **💡 Protip: Looking to bundle your TypeScript project?**
+
+> [!TIP]
+> **Do you need to compile your TypeScript projects?** Try [pkgroll](https://github.com/privatenumber/pkgroll)—the zero-config bundler _tsx_ uses!
 >
-> If you're looking for a dead simple way to bundle your TypeScript projects, take a look at [`pkgroll`](https://github.com/privatenumber/pkgroll). It's an esbuild-enhanced Rollup that's auto configured based on your `package.json`!
+> _pkgroll_ is a thin layer over Rollup that auto-configures it based on your `package.json` entry points.
+> 
+> It supports next-gen TS formats, export maps, `.d.ts` generation, and more!
 
 <br>
 
@@ -34,6 +38,18 @@ This is for you if you ever wanted:
 - Better interoperability in codebases that use ESM and CJS dependencies
 - Something really fast it's unnoticeable!
 
+> [!TIP]
+> **tsx is not just for TypeScript!** It also helps Node load `module` type packages.
+>
+> If you're getting the following error, give _tsx_ a try!
+> ```
+> require('ESM package');
+> ^
+> 
+> Error [ERR_REQUIRE_ESM]: require() of ES Module <ESM package> from ./file.js not supported.
+> Instead change the require of <ESM package> in ./file.js to a dynamic import() which is available in all CommonJS modules.
+> ```
+
 ### Quick start
 Try tsx now without setup! Just pass in a TypeScript file:
 
@@ -45,7 +61,6 @@ npx tsx ./script.ts
 1. Enhance Node.js with TypeScript support
 2. Improve ESM <-> CJS interoperability as the ecosystem migrates to ESM
 3. Support the [LTS versions of Node.js](https://endoflife.date/nodejs)
-
 
 ## Install
 
@@ -224,6 +239,96 @@ $ ./file.ts hello
 argv: [ 'hello' ]
 ```
 
+### VS Code debugging
+
+#### Setup
+
+Create the following configuration file in your project to setup debugging in VS Code:
+
+`.vscode/launch.json`
+```json5
+{
+    "version": "0.2.0",
+
+    "configurations": [
+        /*
+        Each config in this array is an option in the debug drop-down
+        See below for configurations to add...
+        */
+    ],
+}
+```
+
+#### Debugging method 1: Run tsx directly from VSCode
+
+1. Add the following configuration to the `configurations` array in `.vscode/launch.json`:
+	```json5
+	{
+	    "name": "tsx",
+	    "type": "node",
+	    "request": "launch",
+
+	    // Debug current file in VSCode
+	    "program": "${file}",
+
+	    /*
+	    Path to tsx binary
+	    Assuming locally installed
+	    */
+	    "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/tsx",
+
+	    /*
+	    Open terminal when debugging starts (Optional)
+	    Useful to see console.logs
+	    */
+	    "console": "integratedTerminal",
+	    "internalConsoleOptions": "neverOpen",
+
+	    // Files to exclude from debugger (e.g. call stack)
+	    "skipFiles": [
+	        // Node.js internal core modules
+	        "<node_internals>/**",
+
+	        // Ignore all dependencies (optional)
+	        "${workspaceFolder}/node_modules/**",
+	    ],
+	}
+	```
+
+2. In VSCode, open the file you want to run
+
+3. Go to VSCode's debug panel, select "tsx" in the drop down, and hit the play button (<kbd>F5</kbd>).
+
+#### Debugging method 2: Attach to a running Node.js process
+
+> This method works for any Node.js process and it's not specific to tsx
+
+1. Add the following configuration to the `configurations` array in `.vscode/launch.json`:
+	```json
+	{
+	    "name": "Attach to process",
+	    "type": "node",
+	    "request": "attach",
+	    "port": 9229,
+	    "skipFiles": [
+	        // Node.js internal core modules
+	        "<node_internals>/**",
+
+	        // Ignore all dependencies (optional)
+	        "${workspaceFolder}/node_modules/**",
+	    ],
+	}
+	```
+2. Run tsx with `--inspect-brk` in a terminal window:
+
+	```sh
+	tsx --inspect-brk ./your-file.ts 
+	```
+
+3. Go to VSCode's debug panel, select "Attach to process" in the drop down, and hit the play button (<kbd>F5</kbd>).
+
+See the [VSCode documentation on _Launch Configuration_](https://code.visualstudio.com/docs/nodejs/nodejs-debugging#_launch-configuration) for more information.
+
 <br>
 
 <p align="center">
@@ -242,7 +347,7 @@ If there's a problem you're encountering or something you need help with, don't 
 
 ## FAQ
 
-### Why is it named `tsx`?
+### Why is it named _tsx_?
 
 `tsx` stands for "TypeScript execute". Mirroring [`npx`](https://docs.npmjs.com/cli/v8/commands/npx), which stands for "Node.js package execute".
 
@@ -250,11 +355,11 @@ The 3-character package name offers an elegant developer experience, allowing us
 
 Unfortunately, it overlaps with React's [TSX/JSX](https://www.typescriptlang.org/docs/handbook/jsx.html), which stands for "TypeScript XML".
 
-### Does it do type-checking?
+### Does it type check the code it runs?
 
-No, [esbuild does not support type checking](https://esbuild.github.io/faq/#:~:text=TypeScript%20type%20checking%20(just%20run%20tsc%20separately)).
+No. tsx is designed to be a simple TypeScript runner.
 
-It's recommended to run TypeScript separately as a command (`tsc --noEmit`) or via [IDE IntelliSense](https://code.visualstudio.com/docs/languages/typescript).
+If you need type-checking, you can use an IDE like [VS Code](https://code.visualstudio.com) and it will type-check as you code via [IntelliSense](https://code.visualstudio.com/docs/languages/typescript). Alternatively, you can run the TypeScript Compiler only for type-checking (e.g. `tsc --noEmit`) as a linting step.
 
 
 ### How is `tsx` different from [`ts-node`](https://github.com/TypeStrong/ts-node)?
@@ -281,33 +386,19 @@ As a bonus, tsx also comes with a watcher to speed up your development.
 
 [Here's an exhaustive technical comparison](https://github.com/privatenumber/ts-runtime-comparison) between `tsx`, `ts-node`, and other runtimes.
 
-### Can it use esbuild plugins?
-
-No. tsx uses esbuild's [Transform API](https://esbuild.github.io/api/#transform-api), which doesn't support plugins.
-
 ### Does it have a configuration file?
 
-No. tsx's integration with Node.js is designed to be seamless so there is no configuration.
+No. tsx's integration with Node.js is designed to be simple & seamless. However, it supports a few properties from `tsconfig.json` to determine how to compile TypeScript files.
 
 ### Does it have any limitations?
 
-Transformations are handled by esbuild, so it shares the same limitations such as:
+TypeScript & ESM transformations are handled by [esbuild](https://esbuild.github.io/), so it shares the same limitations such as:
 
 - Compatibility with code executed via `eval()` is not preserved
 - Only [certain `tsconfig.json` properties](https://esbuild.github.io/content-types/#tsconfig-json) are supported
 - [`emitDecoratorMetadata`](https://www.typescriptlang.org/tsconfig#emitDecoratorMetadata) is not supported 
 
 For details, refer to esbuild's [JavaScript caveats](https://esbuild.github.io/content-types/#javascript-caveats) and [TypeScript caveats](https://esbuild.github.io/content-types/#typescript-caveats) documentation.
-
-### Does Yarn PnP work?
-
-In CommonJS mode, yes. But in Module/ESM mode, [Node.js version v19.6.0 and up](https://github.com/nodejs/node/blob/v19.6.0/doc/changelogs/CHANGELOG_V19.md#esm-leverage-loaders-when-resolving-subsequent-loaders) is required.
-
-### There's an outdated dependency in tsx—can you update?
-
-Dependencies are typically declared with SemVer ranges to allow updates. You can use the [`npm update <package name>`](https://docs.npmjs.com/cli/v8/commands/npm-update) command to automatically update them to the latest version within the defined range.
-
-If the dependencies are out of the specified range, it indicates a potential breaking change that requires manual review. You're welcome to submit a pull request to initiate the upgrade.
 
 ## Sponsors
 

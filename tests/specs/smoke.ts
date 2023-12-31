@@ -79,9 +79,10 @@ export default 1;
 `;
 
 const sourcemap = {
+	// Adding the dynamic import helps test the import transformation's source map
 	test: (
 		extension: string,
-	) => `const { stack } = new Error(); const searchString = 'index.${extension}:SOURCEMAP_LINE'; assert(stack.includes(searchString), \`Expected \${searchString} in stack: \${stack}\`)`,
+	) => `import('fs');\nconst { stack } = new Error(); const searchString = 'index.${extension}:SOURCEMAP_LINE'; assert(stack.includes(searchString), \`Expected \${searchString} in stack: \${stack}\`)`,
 	tag: (
 		strings: TemplateStringsArray,
 		...values: string[]
@@ -229,7 +230,8 @@ const files = {
 				type: 'module',
 				exports: './index.js',
 			}),
-			'index.js': syntaxLowering,
+			'index.js': `${syntaxLowering}\nexport * from "./empty-export.js"`,
+			'empty-export.js': 'export {}',
 		},
 	},
 

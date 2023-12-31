@@ -1,3 +1,6 @@
+import { constants as osConstants } from 'os';
+import type { ChildProcess, Serializable } from 'child_process';
+import type { Server } from 'net';
 import { cli } from 'cleye';
 import {
 	transformSync as esbuildTransformSync,
@@ -9,6 +12,96 @@ import {
 	removeArgvFlags,
 	ignoreAfterArgument,
 } from './remove-argv-flags.js';
+import { isFeatureSupported, testRunnerGlob } from './utils/node-features.js';
+import { createIpcServer } from './utils/ipc/server.js';
+
+const relaySignals = (
+	childProcess: ChildProcess,
+	ipcSocket: Server,
+) => {
+	let waitForSignal: undefined | ((signal: NodeJS.Signals) => void);
+
+	ipcSocket.on('data', (data: { type: string; signal: NodeJS.Signals }) => {
+		if (
+			data
+			&& data.type === 'signal'
+			&& waitForSignal
+		) {
+			waitForSignal(data.signal);
+		}
+	});
+
+	const waitForSignalFromChild = () => {
+		const p = new Promise<NodeJS.Signals | undefined>((resolve) => {
+			// Aribrary timeout based on flaky tests
+			setTimeout(() => resolve(undefined), 30);
+			waitForSignal = resolve;
+		});
+
+		p.then(
+			() => {
+				waitForSignal = undefined;
+			},
+			() => {},
+		);
+
+		return p;
+	};
+
+	const relaySignalToChild = async (
+		signal: NodeJS.Signals,
+	) => {
+		/**
+		 * This callback is triggered if the parent receives a signal
+		 *
+		 * Child could also receive a signal at the same time if it detected
+		 * a keypress or was sent a signal via process group
+		 *
+		 * The preflight registers a signal handler on the child to
+		 * tell the parent if it also received a signal which we wait for here
+		 */
+		const signalFromChild = await waitForSignalFromChild();
+
+		/**
+		 * If child didn't receive a signal, it's either because it was
+		 * sent to the parent directly via kill PID or the child is
+		 * unresponsive (e.g. infinite loop). Relay signal to child.
+		 */
+		if (signalFromChild !== signal) {
+			childProcess.kill(signal);
+
+			/**
+			 * If child is unresponsive (e.g. infinite loop), we need to force kill it
+			 */
+			const isChildResponsive = await waitForSignalFromChild();
+			if (isChildResponsive !== signal) {
+				// This seems to run before the handler registered at the bottom of this file
+				// Seems the lastest handler is called first
+				childProcess.on('exit', () => {
+					/**
+					 * Even though this may not be a SIGKILL, I've confirmed Ctrl+C on an infinite looping
+					 * file exits with 130, which is 128 + 2 (SIGINT)
+					 *
+					 * https://nodejs.org/api/process.html#exit-codes
+					 * >128 Signal Exits: If Node.js receives a fatal signal such as SIGKILL or SIGHUP,
+					 * then its exit code will be 128 plus the value of the signal code. This is a
+					 * standard POSIX practice, since exit codes are defined to be 7-bit integers, and
+					 * signal exits set the high-order bit, and then contain the value of the signal code.
+					 * For example, signal SIGABRT has value 6, so the expected exit code will be 128 + 6,
+					 * or 134.
+					 */
+					const exitCode = osConstants.signals[signal];
+					process.exit(128 + exitCode);
+				});
+
+				childProcess.kill('SIGKILL');
+			}
+		}
+	};
+
+	process.on('SIGINT', relaySignalToChild);
+	process.on('SIGTERM', relaySignalToChild);
+};
 
 const tsxFlags = {
 	noCache: {
@@ -42,7 +135,7 @@ cli({
 	},
 	help: false,
 	ignoreArgv: ignoreAfterArgument(),
-}, (argv) => {
+}, async (argv) => {
 	if (argv.flags.version) {
 		process.stdout.write(`tsx v${version}\nnode `);
 	} else if (argv.flags.help) {
@@ -61,15 +154,19 @@ cli({
 			type: String,
 			alias: 'p',
 		},
-	};
+	} as const;
 
-	const { flags: interceptedFlags } = cli({
+	const {
+		_: firstArgs,
+		flags: interceptedFlags,
+	} = cli({
 		flags: {
 			...interceptFlags,
 			inputType: String,
+			test: Boolean,
 		},
 		help: false,
-		ignoreArgv: ignoreAfterArgument(),
+		ignoreArgv: ignoreAfterArgument(false),
 	});
 
 	const argvsToRun = removeArgvFlags({
@@ -91,8 +188,19 @@ cli({
 			},
 		);
 
-		argvsToRun.push(`--${evalType}`, transformed.code);
+		argvsToRun.unshift(`--${evalType}`, transformed.code);
 	}
+
+	// Default --test glob to find TypeScript files
+	if (
+		isFeatureSupported(testRunnerGlob)
+		&& interceptedFlags.test
+		&& firstArgs.length === 0
+	) {
+		argvsToRun.push('**/{test,test/**/*,test-*,*[.-_]test}.?(c|m)@(t|j)s');
+	}
+
+	const ipc = await createIpcServer();
 
 	const childProcess = run(
 		argvsToRun,
@@ -102,43 +210,29 @@ cli({
 		},
 	);
 
-	const relaySignal = async (signal: NodeJS.Signals) => {
-		const message = await Promise.race([
-			/**
-			 * If child received a signal, it detected a keypress or
-			 * was sent a signal via process group.
-			 *
-			 * Ignore it and let child handle it.
-			 */
-			new Promise<NodeJS.Signals>((resolve) => {
-				function onKillSignal(data: { type: string; signal: NodeJS.Signals }) {
-					if (data && data.type === 'kill') {
-						resolve(data.signal);
-						childProcess.off('message', onKillSignal);
-					}
-				}
+	relaySignals(childProcess, ipc);
 
-				childProcess.on('message', onKillSignal);
-			}),
-			new Promise((resolve) => {
-				setTimeout(resolve, 10);
-			}),
-		]);
+	if (process.send) {
+		childProcess.on('message', (message) => {
+			process.send!(message);
+		});
+	}
 
-		/**
-		 * If child didn't receive a signal, it was sent to the parent
-		 * directly via kill PID. Relay it to child.
-		 */
-		if (!message) {
-			childProcess.kill(signal);
-		}
-	};
-
-	process.on('SIGINT', relaySignal);
-	process.on('SIGTERM', relaySignal);
+	if (childProcess.send) {
+		process.on('message', (message) => {
+			childProcess.send(message as Serializable);
+		});
+	}
 
 	childProcess.on(
 		'close',
-		code => process.exit(code!),
+		(exitCode) => {
+			// If there's no exit code, it's likely killed by a signal
+			// https://nodejs.org/api/process.html#process_exit_codes
+			if (exitCode === null) {
+				exitCode = osConstants.signals[childProcess.signalCode!] + 128;
+			}
+			process.exit(exitCode);
+		},
 	);
 });
